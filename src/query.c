@@ -128,16 +128,25 @@ int str_fn2obj(char **dst, char *src, const char *objectType) {
                 actualSuffix[expectedLen-1-i] = (*dst)[c];
         }
         actualSuffix[expectedLen] = '\0';
-        if (strcmp(expectedSuffix, actualSuffix) != 0) {
-            logmsg(LOG_ERROR, "Expected suffix was [%s], got [%s] from [%s]", expectedSuffix, actualSuffix, *dst);
-            free(actualSuffix);
-            free(expectedSuffix);
-            return EXIT_FAILURE;
+
+        
+
+        if (strcmp(objectType, "TABLE") != 0) {
+
+            if (strcmp(expectedSuffix, actualSuffix) != 0) {
+                logmsg(LOG_ERROR, "Expected suffix was [%s], got [%s] from [%s]", expectedSuffix, actualSuffix, *dst);
+                free(actualSuffix);
+                free(expectedSuffix);
+                return EXIT_FAILURE;
+            }
+
+        } else {
+            logmsg(LOG_INFO, "don't check for table");
         }
 
         // actually remove '.sql' suffix:
         (*dst)[strlen(*dst)-expectedLen] = '\0';
-
+        logmsg(LOG_INFO,"suffix - %s", (*dst));
         free(actualSuffix);
         free(expectedSuffix);
     }
@@ -454,13 +463,13 @@ static int qry_last_ddl_time(const char *schema,
 
     const char *query_user =
 "select to_char(last_ddl_time, 'yyyy-mm-dd hh24:mi:ss') as last_ddl_time\
- from all_objects where owner=:schema and object_type=:type and object_name=:name";
+ from all_objects where owner=:schema and object_type=:type and object_name=replace(:name,'XML.','')";
 
     const char *query_dba = // @todo - do the decode part on client
 "select o.mtime\
  from sys.obj$ o\
  join sys.user$ u on u.user# = o.owner#\
- where u.name=:schema and o.type#=:type and o.name=:name";
+ where u.name=:schema and o.type#=:type and o.name=replace(:name,'XML.','')";
 
     const char *query = (g_conf._isdba == 1 ? query_dba : query_user);
 
@@ -904,6 +913,8 @@ where s.owner='SYS' and s.\"TYPE\"='TYPE' AND s.\"NAME\"=o.object_name)");
         goto qry_objects_cleanup;
     }
 
+    logmsg(LOG_INFO, "Przed pentla");
+
     while (ora_stmt_fetch(o_stm) == OCI_SUCCESS) {
 		/*
         memset(temptime, 0, sizeof(struct tm));
@@ -945,9 +956,40 @@ where s.owner='SYS' and s.\"TYPE\"='TYPE' AND s.\"NAME\"=o.object_name)");
             t_modified,
             t_modified);
 
+        logmsg(LOG_INFO, "Jade z namem %s", fname);
+        logmsg(LOG_INFO, "Jade z typem %s", type_name);
+
         free(fname);
 
         vfs_entry_add(type, entry);
+
+        logmsg(LOG_INFO, "PRZED XML");
+
+        if (strcmp(type_name, "TABLE") == 0) {
+
+            logmsg(LOG_INFO, "DODAJE XML");
+
+            char *fnamexml = malloc(fname_len+4);
+            logmsg(LOG_INFO, "DODAJE XML 2 - %d", fname_len);
+            strcpy(fnamexml, "XML.");
+            strcat(fnamexml, (char*) o_sel[0]);
+            logmsg(LOG_INFO, "DODAJE XML 3 - %s", fnamexml);
+            char *suffix = calloc(10, sizeof(char));
+            strcpy(suffix, ".SQL");
+            strcat(fnamexml, suffix);
+
+            logmsg(LOG_INFO, "DODAJE XML 4 - %s ", fnamexml);
+            t_fsentry *entryxml = vfs_entry_create(ftype,
+                fname,
+                t_modified,
+                t_modified);
+            logmsg(LOG_INFO, "DODAJE XML 5");
+            free(fnamexml);
+            logmsg(LOG_INFO, "DODAJE XML 6");
+            vfs_entry_add(type, entryxml);
+
+        }
+        
     }
     vfs_entry_sort(type);
 

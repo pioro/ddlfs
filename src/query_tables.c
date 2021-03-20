@@ -56,6 +56,33 @@ static void deflist_free(struct deflist *curr) {
     }
 }
 
+
+
+static int marcinqry(const char *schema, const char *table, char *def) {
+    const char *query =
+"select dbms_metadata.get_sxml('TABLE',replace(:bind_name,'XML.',''),:bind_owner) as definition from dual";
+
+
+// substr(dbms_metadata.get_sxml('TABLE','EMP','SCOTT'), 1024)
+    int retval = EXIT_SUCCESS;
+
+    logmsg(LOG_INFO, "wsadzam sie");
+
+    ORA_STMT_PREPARE(marcinqry);
+    ORA_STMT_DEFINE_STR_I(marcinqry, 1, definition, 16000);
+    ORA_STMT_BIND_STR(marcinqry, 2, schema);
+    ORA_STMT_BIND_STR(marcinqry, 1, table);
+    ORA_STMT_EXECUTE(marcinqry, 0);
+    if (ORA_STMT_FETCH) {
+        //logmsg(LOG_INFO, "mamy ddl - %s", o_definition);
+        strncpy(def, o_definition, 16000);
+    }
+
+marcinqry_cleanup:
+    ORA_STMT_FREE;
+    return retval;
+}
+
 static int tab_all_tables(const char *schema, const char *table, struct tabledef *def) {
     const char *query =
 "select t.\"TEMPORARY\"\
@@ -423,6 +450,7 @@ int qry_object_all_tables(const char *schema,
     int retval = EXIT_SUCCESS;
     FILE *fp = NULL;
     char temp[4096];
+    char *definition;
     struct tabledef *def = malloc(sizeof(struct tabledef));
     struct deflist *col = NULL;
     int colcnt = 0;
@@ -460,6 +488,8 @@ int qry_object_all_tables(const char *schema,
         goto qry_object_all_tables_cleanup;
     }
 
+    
+
     fp = fopen(fname, "w");
     if (fp == NULL) {
         logmsg(LOG_ERROR, "qry_object_all_tables(): Unable to open [%s]: %d %n", fname, errno, strerror(errno));
@@ -468,8 +498,22 @@ int qry_object_all_tables(const char *schema,
     }
 
     if (def->exists == 'N') {
-        snprintf(temp, 4096, "/* this table is not present in all_tables */\n");
-        fwrite(temp, 1, strlen(temp), fp);
+
+        logmsg(LOG_INFO, "CHECKING table name %s", table);
+
+        if (strncmp(table, "XML.", 4) == 0) {
+            definition = malloc(16000);
+            marcinqry(schema, table, definition);
+            
+            //snprintf(temp, 4096, "/* damy czadu */\n");
+            fwrite(definition, 1, strlen(definition), fp);
+            free(definition);
+        } else {
+            snprintf(temp, 4096, "/* this table is not present in all_tables */\n");
+            fwrite(temp, 1, strlen(temp), fp);
+        }
+
+
         goto qry_object_all_tables_cleanup;
     }
 

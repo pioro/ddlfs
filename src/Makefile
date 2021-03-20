@@ -1,4 +1,5 @@
-LD_LIBRARY_PATH=..\..\instantclient_18_3
+LD_LIBRARY_PATH=/usr/lib/oracle/21/client64/lib
+INCLUDE_PATH=/usr/include/oracle/21/client64
 
 windows:
 	
@@ -26,8 +27,10 @@ linux:
 	@mkdir -p ../target
 	gcc main.c logging.c config.c fuse-impl.c query.c query_tables.c vfs.c \
 		oracle.c tempfs.c util.c dbro_refresh.c \
-		-I $(LD_LIBRARY_PATH)/sdk/include \
+		-I $(INCLUDE_PATH) \
 		-L $(LD_LIBRARY_PATH) -lclntsh \
+                -std=gnu99 \
+                -D_FILE_OFFSET_BITS=64 \
 		-g -o ../target/ddlfs \
 		-Wall -pedantic \
 		`pkg-config fuse --cflags --libs`
